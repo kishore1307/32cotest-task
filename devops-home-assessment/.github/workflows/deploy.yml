@@ -51,4 +51,4 @@ jobs:
           npm install --production
           pkill -f "node server.js" || true
           nohup node server.js > output.log 2>&1 &
-          echo "Deployment complete"
+          echo "✅ Deployment complete"
