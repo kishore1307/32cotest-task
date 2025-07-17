@@ -1,0 +1,32 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Deploy to EC2 via SSH
+        uses: easingthemes/ssh-deploy@v2
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+          remote-user: ec2-user
+          server-ip: ${{ secrets.EC2_IP }}
+          remote-path: /home/ec2-user/app
+          local-path: ./app
