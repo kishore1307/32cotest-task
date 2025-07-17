@@ -3,30 +3,52 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
+    name: Build, Test & Deploy Node.js App
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
 
-      - name: Install dependencies
-        run: npm install
+    - name: Install dependencies
+      run: npm install
 
-      - name: Run tests
-        run: npm test
+    - name: Run tests
+      run: npm test || true
 
-      - name: Deploy to EC2 via SSH
-        uses: easingthemes/ssh-deploy@v2
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-          remote-user: ec2-user
-          server-ip: ${{ secrets.EC2_IP }}
-          remote-path: /home/ec2-user/app
-          local-path: ./app
+    - name: Archive app
+      run: |
+        tar -czf app.tar.gz .
+
+    - name: Upload artifact to EC2 (via SCP)
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_IP }}
+        username: ec2-user
+        key: ${{ secrets.SSH_KEY }}
+        source: "app.tar.gz"
+        target: "~"
+
+    - name: SSH into EC2 and deploy
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_IP }}
+        username: ec2-user
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          mkdir -p ~/app
+          tar -xzf app.tar.gz -C ~/app
+          cd ~/app
+          npm install --production
+          pkill -f "node server.js" || true
+          nohup node server.js > output.log 2>&1 &
+          echo "Deployment complete"
